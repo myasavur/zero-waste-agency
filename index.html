@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Tic Tac Toe - Gelişmiş</title>
+  <style>
+    :root {
+      --bg-color: #f0f0f0;
+      --text-color: #333;
+      --cell-bg: #ffffff;
+      --highlight-color: yellow;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 30px;
+      background: var(--bg-color);
+      color: var(--text-color);
+      transition: all 0.3s;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 100px);
+      gap: 5px;
+      justify-content: center;
+      margin: 20px auto;
+    }
+
+    .cell {
+      width: 100px;
+      height: 100px;
+      font-size: 2em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--cell-bg);
+      cursor: pointer;
+      transition: background 0.3s, transform 0.3s;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .cell.taken {
+      pointer-events: none;
+    }
+
+    .cell.X {
+      color: blue;
+    }
+
+    .cell.O {
+      color: red;
+    }
+
+    .highlight {
+      background: var(--highlight-color) !important;
+      transform: scale(1.1);
+    }
+
+    button {
+      margin: 10px;
+      padding: 10px 20px;
+      font-size: 1em;
+      cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      background: #4CAF50;
+      color: white;
+      transition: transform 0.2s, background 0.2s;
+    }
+
+    button:hover {
+      transform: scale(1.05);
+      background: #45a049;
+    }
+
+    #scoreboard {
+      margin-top: 20px;
+      font-size: 1.2em;
+      background: white;
+      padding: 10px 20px;
+      border-radius: 10px;
+      display: inline-block;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      color: black;
+    }
+
+    select,
+    input {
+      margin: 5px;
+      padding: 8px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+
+    #confetti-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 9999;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Tic Tac Toe 🎯</h1>
+
+  <!-- Tema Seçimi -->
+  <div>
+    Tema:
+    <select id="theme-select" onchange="changeTheme()">
+      <option value="light">Açık</option>
+      <option value="dark">Koyu</option>
+    </select>
+  </div>
+
+  <!-- Oyuncu Ayarları -->
+  <div id="setup">
+    <h3>Oyun Ayarları</h3>
+    Oyuncu 1 İsmi: <input id="player1" placeholder="Oyuncu 1"><br>
+    Oyuncu 2 İsmi (veya boş bırak AI için): <input id="player2" placeholder="Oyuncu 2"><br>
+    <button onclick="startGame()">Başla</button>
+  </div>
+
+  <!-- Oyun Alanı -->
+  <canvas id="confetti-canvas"></canvas>
+  <div id="game" class="hidden">
+    <div id="difficulty" class="hidden">
+      Zorluk:
+      <select id="difficulty-select" onchange="setDifficulty()">
+        <option value="easy">Kolay</option>
+        <option value="medium" selected>Orta</option>
+        <option value="hard">Zor</option>
+      </select>
+    </div>
+    <div id="scoreboard"></div>
+    <div class="board" id="board"></div>
+    <p id="status"></p>
+    <button onclick="restartGame()">Yeniden Başlat</button>
+    <div id="message"></div>
+  </div>
+
+  <!-- Ses -->
+  <audio id="move-sound" src="https://freesound.org/data/previews/256/256113_3263906-lq.mp3"></audio>
+
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+  <script>
+    let player1Name = 'X';
+    let player2Name = 'O';
+    let singlePlayer = true;
+    let cells = Array(9).fill(null);
+    let currentPlayer = 'X';
+    let scores = { X: 0, O: 0 };
+    let difficulty = 'medium';
+
+    const board = document.getElementById('board');
+    const statusDiv = document.getElementById('status');
+    const scoreboard = document.getElementById('scoreboard');
+    const message = document.getElementById('message');
+    const moveSound = document.getElementById('move-sound');
+    const setup = document.getElementById('setup');
+    const game = document.getElementById('game');
+    const difficultyDiv = document.getElementById('difficulty');
+
+    function changeTheme() {
+      const theme = document.getElementById('theme-select').value;
+      if (theme === 'dark') {
+        document.documentElement.style.setProperty('--bg-color', '#333');
+        document.documentElement.style.setProperty('--text-color', '#f0f0f0');
+        document.documentElement.style.setProperty('--cell-bg', '#555');
+        document.documentElement.style.setProperty('--highlight-color', 'orange');
+      } else {
+        document.documentElement.style.setProperty('--bg-color', '#f0f0f0');
+        document.documentElement.style.setProperty('--text-color', '#333');
+        document.documentElement.style.setProperty('--cell-bg', '#ffffff');
+        document.documentElement.style.setProperty('--highlight-color', 'yellow');
+      }
+    }
+
+    function startGame() {
+      player1Name = document.getElementById('player1').value || 'X';
+      player2Name = document.getElementById('player2').value || 'O';
+      singlePlayer = document.getElementById('player2').value.trim() === '';
+      setup.classList.add('hidden');
+      game.classList.remove('hidden');
+      if (singlePlayer) difficultyDiv.classList.remove('hidden');
+      updateScoreboard();
+      createBoard();
+    }
+
+    function playSound() {
+      moveSound.currentTime = 0;
+      moveSound.play();
+    }
+
+    function setDifficulty() {
+      difficulty = document.getElementById('difficulty-select').value;
+    }
+
+    function createBoard() {
+      board.innerHTML = '';
+      cells = Array(9).fill(null);
+      for (let i = 0; i < 9; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.addEventListener('click', () => makeMove(i, currentPlayer));
+        board.appendChild(cell);
+      }
+      board.style.pointerEvents = 'auto';
+      statusDiv.textContent = `${currentPlayer === 'X' ? player1Name : player2Name}'ın sırası`;
+      message.textContent = '';
+    }
+
+    function updateScoreboard() {
+      scoreboard.textContent = `${player1Name} (X): ${scores.X} | ${player2Name} (O): ${scores.O}`;
+    }
+
+    function checkWinner(player) {
+      const winPatterns = [
+        [0, 1, 2], [3, 4, 5], [6, 7, 8],
+        [0, 3, 6], [1, 4, 7], [2, 5, 8],
+        [0, 4, 8], [2, 4, 6]
+      ];
+      for (const pattern of winPatterns) {
+        if (pattern.every(idx => cells[idx] === player)) {
+          pattern.forEach(idx => board.children[idx].classList.add('highlight'));
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function isFull() {
+      return cells.every(cell => cell !== null);
+    }
+
+    function makeMove(index, player) {
+      if (!cells[index]) {
+        playSound();
+        cells[index] = player;
+        const cellDiv = board.children[index];
+        cellDiv.textContent = player;
+        cellDiv.classList.add('taken', player);
+        if (checkWinner(player)) {
+          statusDiv.textContent = `${player === 'X' ? player1Name : player2Name} kazandı!`;
+          scores[player]++;
+          board.style.pointerEvents = 'none';
+          updateScoreboard();
+          showVictoryMessage(player);
+          launchConfetti();
+        } else if (isFull()) {
+          statusDiv.textContent = 'Berabere!';
+          showDrawMessage();
+        } else {
+          currentPlayer = (player === 'X') ? 'O' : 'X';
+          statusDiv.textContent = `${currentPlayer === 'X' ? player1Name : player2Name}'ın sırası`;
+          if (singlePlayer && currentPlayer === 'O') {
+            setTimeout(() => {
+              const aiIndex = aiMove();
+              makeMove(aiIndex, 'O');
+            }, 500);
+          }
+        }
+      }
+    }
+
+    function aiMove() {
+      const emptyCells = cells.map((cell, idx) => cell === null ? idx : null).filter(idx => idx !== null);
+      if (difficulty === 'easy') {
+        return emptyCells[Math.floor(Math.random() * emptyCells.length)];
+      }
+      if (difficulty === 'medium') {
+        return Math.random() < 0.5 ? randomMove() : bestMove();
+      }
+      return bestMove();
+
+      function randomMove() {
+        return emptyCells[Math.floor(Math.random() * emptyCells.length)];
+      }
+
+      function bestMove() {
+        function minimax(newCells, isMaximizing) {
+          if (checkStaticWinner(newCells, 'O')) return { score: 1 };
+          if (checkStaticWinner(newCells, 'X')) return { score: -1 };
+          if (newCells.every(cell => cell !== null)) return { score: 0 };
+
+          let best;
+          if (isMaximizing) {
+            best = { score: -Infinity };
+            newCells.forEach((cell, idx) => {
+              if (cell === null) {
+                newCells[idx] = 'O';
+                let sim = minimax(newCells, false);
+                newCells[idx] = null;
+                if (sim.score > best.score) best = { score: sim.score, index: idx };
+              }
+            });
+          } else {
+            best = { score: Infinity };
+            newCells.forEach((cell, idx) => {
+              if (cell === null) {
+                newCells[idx] = 'X';
+                let sim = minimax(newCells, true);
+                newCells[idx] = null;
+                if (sim.score < best.score) best = { score: sim.score, index: idx };
+              }
+            });
+          }
+          return best;
+        }
+
+        function checkStaticWinner(cellsCheck, player) {
+          const winPatterns = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8],
+            [0, 3, 6], [1, 4, 7], [2, 5, 8],
+            [0, 4, 8], [2, 4, 6]
+          ];
+          return winPatterns.some(pattern => pattern.every(idx => cellsCheck[idx] === player));
+        }
+
+        return minimax([...cells], true).index;
+      }
+    }
+
+    function showVictoryMessage(player) {
+      message.textContent = `🎉 Tebrikler ${player === 'X' ? player1Name : player2Name}! 🎉`;
+    }
+
+    function showDrawMessage() {
+      message.textContent = '🤝 Oyun berabere bitti!';
+    }
+
+    function restartGame() {
+      createBoard();
+    }
+
+    function launchConfetti() {
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+    }
+  </script>
+</body>
+
+</html>
